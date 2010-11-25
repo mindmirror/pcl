@@ -46,13 +46,13 @@
 (defun artist-selector (artist)
   #'(lambda (cd) (equal (getf cd :artist) artist)))
 
-(defun where (&key title artist rating (ripped nil ripped-p))
- #'(lambda (cd)
-     (and
-      (if title    (equal (getf cd :title) title)   t)
-      (if artist   (equal (getf cd :artist) artist) t)
-      (if rating   (equal (getf cd :rating) rating) t)
-      (if ripped-p (equal (getf cd :ripped) ripped) t))))
+;; (defun where (&key title artist rating (ripped nil ripped-p))
+;;  #'(lambda (cd)
+;;      (and
+;;       (if title    (equal (getf cd :title) title)   t)
+;;       (if artist   (equal (getf cd :artist) artist) t)
+;;       (if rating   (equal (getf cd :rating) rating) t)
+;;       (if ripped-p (equal (getf cd :ripped) ripped) t))))
 
 (defun update (selector-fn &key title artist rating (ripped nil ripped-p))
   (setf *db*
@@ -63,10 +63,34 @@
                (if artist   (setf (getf row :artist) artist))
                (if rating   (setf (getf row :rating) rating))
                (if ripped-p (setf (getf row :ripped) ripped)))
-             row) *db*)))
+             row)
+         *db*)))
 
 (defun delete-rows (selector-fn)
   (setf *db* (remove-if selector-fn *db*)))
 
 (defun make-comparison-expr (field value)
   `(equal (getf cd ,field) ,value))
+
+(defun make-comparisons-list (fields)
+  (loop while fields
+       collecting (make-comparison-expr (pop fields) (pop fields))))
+
+(defun where (&rest clauses)
+  `#'(lambda (cd) (and ,@(make-comparisons-list clauses))))
+
+(defun make-setting-expr (field value)
+  `(setf (getf cd ,field) ,value))
+
+(defun make-settings-list (fields)
+  (loop while fields
+       collecting (make-setting-expr (pop fields) (pop fields))))
+
+(defun update2 (selector-fn &rest clauses)
+  (setf *db*
+        (mapcar
+         #'(lambda (row)
+             (when (funcall selector-fn row)
+               (make-settings-list clauses)) ;; I don't know how to break the outer list at this point
+             row)
+         *db*)))
